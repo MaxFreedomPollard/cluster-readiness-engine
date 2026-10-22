@@ -51,11 +51,21 @@ for version_file in "${version_files[@]}"; do
   git archive "refs/tags/${version}" -- docs/ | tar -x --strip-components=1 -C "${content}"
 
   # Escape {, } and < for MDX -- but only outside fenced code blocks and inline
-  # code spans, where they are legitimate literal characters.
+  # code spans, where they are legitimate literal characters. MDX has no
+  # indented code, so a fence opens at any indentation, as one under a list
+  # item does.
+  #
+  # Two kinds of line are not text either, and escaping them prints their
+  # markup on the published page. A line that is only a component tag, such as
+  # <Note> or </Warning>, is MDX already and is kept, so the callout renders. A
+  # line that is only an HTML comment becomes a blank line: MDX has no HTML
+  # comments, and the comment was never meant to be seen.
   find "${content}" -name '*.md' -print0 | while IFS= read -r -d '' f; do
     awk '
-      /^````*/ || /^~~~~*/ { fence = !fence; print; next }
+      /^[ \t]*(```|~~~)/ { fence = !fence; print; next }
       fence { print; next }
+      /^[ \t]*<\/?[A-Z][A-Za-z0-9]*([ \t][^<>]*)?\/?>[ \t]*$/ { print; next }
+      /^[ \t]*<!--.*-->[ \t]*$/ { print ""; next }
       {
         n = split($0, p, "`")
         out = ""
